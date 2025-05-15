@@ -1,7 +1,8 @@
 name: flutter_ogg_to_aac
 description: "A Flutter plugin to convert audio files from OGG to AAC without using FFMPEG."
 version: 0.0.1
-homepage: https://github.com/yourusername/flutter_ogg_to_aac
+homepage: https://github.com/nmtuong97/flutter-ogg-to-aac
+repository: https://github.com/nmtuong97/flutter-ogg-to-aac
 
 environment:
   sdk: ^3.7.2
