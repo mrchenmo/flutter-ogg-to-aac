@@ -139,4 +139,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Issues and Feedback
 
-Please file issues and feedback using the [GitHub issue tracker](https://github.com/yourusername/flutter_ogg_to_aac/issues).
+Please file issues and feedback using the [GitHub issue tracker](https://github.com/nmtuong97/flutter-ogg-to-aac/issues).
