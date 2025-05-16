@@ -6,6 +6,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -179,6 +180,8 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
       mediaFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
       mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
       mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384)
+      // Set PCM encoding bit depth to 16 bits
+      mediaFormat.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
 
       // Create and configure the MediaCodec encoder
       mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
@@ -210,13 +213,27 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
           val bytesRead = fis.read(pcmBuffer)
 
           if (bytesRead > 0) {
-            inputBuffer?.put(pcmBuffer, 0, bytesRead)
-            mediaCodec.queueInputBuffer(inputBufferIndex, 0, bytesRead, presentationTimeUs, 0)
-            presentationTimeUs += frameDurationUs
+            // Ensure we're reading complete frames
+            val completeFrameBytes = (bytesRead / frameSizeInBytes) * frameSizeInBytes
+            if (completeFrameBytes > 0) {
+              inputBuffer?.put(pcmBuffer, 0, completeFrameBytes)
+              mediaCodec.queueInputBuffer(inputBufferIndex, 0, completeFrameBytes, presentationTimeUs, 0)
+
+              // Calculate presentation time based on actual samples processed
+              val samplesProcessed = completeFrameBytes / frameSizeInBytes
+              val durationUs = (1000000L * samplesProcessed) / sampleRate
+              presentationTimeUs += durationUs
+
+              Log.d(TAG, "Queued ${completeFrameBytes} bytes of PCM data (${samplesProcessed} samples)")
+            } else {
+              // Not enough data for a complete frame, skip this buffer
+              mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, 0, 0)
+            }
           } else {
             // End of input data
             mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
             isEOS = true
+            Log.d(TAG, "End of PCM input data")
           }
         }
 
@@ -224,17 +241,9 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
         var outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, timeoutUs)
         while (outputBufferIndex >= 0) {
           if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-            // Codec config data - write it at the start of the file
-            val outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex)
-            outputBuffer?.position(bufferInfo.offset)
-            outputBuffer?.limit(bufferInfo.offset + bufferInfo.size)
-
-            val configData = ByteArray(bufferInfo.size)
-            outputBuffer?.get(configData)
-
-            // For AAC, we need to add ADTS header for each frame
-            // We'll handle this in the main encoding loop
-
+            // Codec config data - we don't need to write this for AAC with ADTS
+            // as ADTS headers contain all the necessary codec config
+            Log.d(TAG, "Received codec config data (${bufferInfo.size} bytes) - skipping")
             mediaCodec.releaseOutputBuffer(outputBufferIndex, false)
             outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, timeoutUs)
             continue
@@ -250,6 +259,13 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
             // Add ADTS header to each AAC frame
             val adtsHeader = createAdtsHeader(bufferInfo.size, sampleRate, channelCount)
+
+            // Log the first few frames for debugging
+            if (presentationTimeUs < 100000) { // Only log first ~100ms
+              Log.d(TAG, "ADTS header: ${adtsHeader.joinToString(", ") { "0x${(it.toInt() and 0xFF).toString(16).padStart(2, '0')}" }}")
+              Log.d(TAG, "AAC frame size: ${bufferInfo.size} bytes, presentation time: ${bufferInfo.presentationTimeUs / 1000} ms")
+            }
+
             fos.write(adtsHeader)
             fos.write(chunk)
 
@@ -313,8 +329,8 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
       else -> 4 // Default to 44100Hz if unknown
     }
 
-    // Profile: AAC LC = 1 (profile - 1 = 1 - 1 = 0)
-    val profile = 1 // AAC LC
+    // Profile: AAC LC = 2 (profile - 1 = 2 - 1 = 1)
+    val profile = 2 // AAC LC
 
     // Frame length including ADTS header (7 bytes)
     val adtsFrameLength = frameLength + 7

@@ -240,8 +240,8 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
       default: sampleRateIndex = 4 // Default to 44100Hz
       }
 
-      // Profile: AAC LC = 1 (profile - 1 = 1 - 1 = 0)
-      let profile: UInt8 = 1 // AAC LC
+      // Profile: AAC LC = 2 (profile - 1 = 2 - 1 = 1)
+      let profile: UInt8 = 2 // AAC LC
 
       // Frame length including ADTS header (7 bytes)
       let adtsFrameLength = frameLength + 7
@@ -255,6 +255,12 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
       header[5] = UInt8(((adtsFrameLength & 0x07) << 5) | 0x1F) // 0x1F = 31 (arbitrary value for buffer fullness)
       header[6] = 0xFC // Buffer fullness (6 bits) + Number of AAC frames - 1 (2 bits)
 
+      // Log the first few headers for debugging
+      if frameLength < 1000 { // Only log small frames (likely the first few)
+          print("\(TAG): ADTS header: \(header.map { String(format: "0x%02X", $0) }.joined(separator: " "))")
+          print("\(TAG): AAC frame size: \(frameLength) bytes")
+      }
+
       return header
   }
 
@@ -265,10 +271,17 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
           return false
       }
 
-      // Create an ExtAudioFileRef for the output AAC file
-      var outputFileRef: ExtAudioFileRef? = nil
+      // Create a file for the output AAC data
+      let fileURL = URL(fileURLWithPath: aacPath)
+      var outputFile: FileHandle? = nil
 
-      // Set up the output file format (AAC)
+      // Make sure the directory exists
+      try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+      // Create the file
+      FileManager.default.createFile(atPath: aacPath, contents: nil)
+
+      // Set up the output format (AAC)
       var outputFormat = AudioStreamBasicDescription(
           mSampleRate: Float64(sampleRate),
           mFormatID: kAudioFormatMPEG4AAC,
@@ -295,9 +308,10 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
       )
 
       // Create the output file
-      var outputURL = URL(fileURLWithPath: aacPath) as CFURL
+      var cfURL = fileURL as CFURL
+      var outputFileRef: ExtAudioFileRef? = nil
       var status = ExtAudioFileCreateWithURL(
-          outputURL,
+          cfURL,
           kAudioFileM4AType,
           &outputFormat,
           nil,
@@ -305,14 +319,14 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
           &outputFileRef
       )
 
-      guard status == noErr, let outputFile = outputFileRef else {
+      guard status == noErr, let audioFile = outputFileRef else {
           print("\(TAG): Failed to create output file: \(status)")
           return false
       }
 
       // Set the client format (input format)
       status = ExtAudioFileSetProperty(
-          outputFile,
+          audioFile,
           kExtAudioFileProperty_ClientDataFormat,
           UInt32(MemoryLayout<AudioStreamBasicDescription>.size),
           &inputFormat
@@ -320,7 +334,7 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
 
       guard status == noErr else {
           print("\(TAG): Failed to set client format: \(status)")
-          ExtAudioFileDispose(outputFile)
+          ExtAudioFileDispose(audioFile)
           return false
       }
 
@@ -328,38 +342,111 @@ public class FlutterOggToAacPlugin: NSObject, FlutterPlugin {
       let bufferSize = 32768 // 32KB buffer
       let bytesPerFrame = channels * 2 // 16-bit PCM = 2 bytes per sample per channel
 
+      // Instead of using ExtAudioFile, we'll manually encode PCM to AAC with ADTS headers
+      // Create an Audio Converter
+      var audioConverter: AudioConverterRef? = nil
+      status = AudioConverterNew(&inputFormat, &outputFormat, &audioConverter)
+
+      guard status == noErr, let converter = audioConverter else {
+          print("\(TAG): Failed to create audio converter: \(status)")
+          ExtAudioFileDispose(audioFile)
+          return false
+      }
+
+      // Set bitrate - 128 kbps is a good quality for AAC
+      var bitRate: UInt32 = 128000
+      status = AudioConverterSetProperty(
+          converter,
+          kAudioConverterEncodeBitRate,
+          UInt32(MemoryLayout<UInt32>.size),
+          &bitRate
+      )
+
+      if status != noErr {
+          print("\(TAG): Failed to set bitrate: \(status)")
+      }
+
       // Process PCM data in chunks
       var offset = 0
+      let outputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+      defer { outputBuffer.deallocate() }
+
+      // Create a file for writing AAC data with ADTS headers
+      let outputFileURL = URL(fileURLWithPath: aacPath)
+      FileManager.default.createFile(atPath: aacPath, contents: nil)
+      guard let fileHandle = try? FileHandle(forWritingTo: outputFileURL) else {
+          print("\(TAG): Failed to create output file")
+          ExtAudioFileDispose(audioFile)
+          AudioConverterDispose(converter)
+          return false
+      }
+
+      // Process PCM data in chunks
       while offset < pcmData.count {
           // Calculate the number of frames to process in this iteration
           let bytesRemaining = pcmData.count - offset
           let bytesToProcess = min(bufferSize, bytesRemaining)
           let framesToProcess = bytesToProcess / bytesPerFrame
 
-          // Create a buffer to hold the PCM data
-          var buffer = AudioBuffer()
-          buffer.mNumberChannels = UInt32(channels)
-          buffer.mDataByteSize = UInt32(bytesToProcess)
-          buffer.mData = UnsafeMutableRawPointer(mutating: (pcmData as NSData).bytes.advanced(by: offset))
+          // Set up the input buffer
+          var inputBuffer = AudioBuffer()
+          inputBuffer.mNumberChannels = UInt32(channels)
+          inputBuffer.mDataByteSize = UInt32(bytesToProcess)
+          inputBuffer.mData = UnsafeMutableRawPointer(mutating: (pcmData as NSData).bytes.advanced(by: offset))
 
-          // Create a buffer list with our single buffer
-          var bufferList = AudioBufferList(mNumberBuffers: 1, mBuffers: buffer)
+          var inputBufferList = AudioBufferList(mNumberBuffers: 1, mBuffers: inputBuffer)
 
-          // Write the frames to the output file
-          status = ExtAudioFileWrite(outputFile, UInt32(framesToProcess), &bufferList)
+          // Set up the output buffer
+          var outputBufferList = AudioBufferList()
+          outputBufferList.mNumberBuffers = 1
+          outputBufferList.mBuffers.mNumberChannels = UInt32(channels)
+          outputBufferList.mBuffers.mDataByteSize = UInt32(bufferSize)
+          outputBufferList.mBuffers.mData = UnsafeMutableRawPointer(outputBuffer)
 
-          if status != noErr {
-              print("\(TAG): Failed to write frames: \(status)")
-              ExtAudioFileDispose(outputFile)
-              return false
+          // Convert PCM to AAC
+          var outputDataPacketSize: UInt32 = 1
+          status = AudioConverterFillComplexBuffer(
+              converter,
+              { (inAudioConverter, ioNumberDataPackets, ioData, outDataPacketDescription, inUserData) -> OSStatus in
+                  // This is a callback that provides input data to the converter
+                  let userData = inUserData!.assumingMemoryBound(to: AudioBufferList.self)
+                  ioData?.pointee.mBuffers.mData = userData.pointee.mBuffers.mData
+                  ioData?.pointee.mBuffers.mDataByteSize = userData.pointee.mBuffers.mDataByteSize
+                  ioData?.pointee.mBuffers.mNumberChannels = userData.pointee.mBuffers.mNumberChannels
+                  ioData?.pointee.mNumberBuffers = 1
+                  ioNumberDataPackets.pointee = 1
+                  return noErr
+              },
+              &inputBufferList,
+              &outputDataPacketSize,
+              &outputBufferList,
+              nil
+          )
+
+          if status == noErr && outputDataPacketSize > 0 {
+              let aacDataSize = Int(outputBufferList.mBuffers.mDataByteSize)
+
+              // Create ADTS header
+              let adtsHeader = createAdtsHeader(frameLength: aacDataSize, sampleRate: sampleRate, channels: channels)
+
+              // Write ADTS header and AAC data to file
+              fileHandle.write(adtsHeader)
+              fileHandle.write(Data(bytes: outputBuffer, count: aacDataSize))
+
+              print("\(TAG): Wrote \(aacDataSize + adtsHeader.count) bytes of AAC data")
+          } else if status != noErr {
+              print("\(TAG): Error converting audio: \(status)")
+              // Continue with next chunk
           }
 
           // Move to the next chunk
           offset += bytesToProcess
       }
 
-      // Close the file
-      ExtAudioFileDispose(outputFile)
+      // Close files and clean up
+      fileHandle.closeFile()
+      ExtAudioFileDispose(audioFile)
+      AudioConverterDispose(converter)
 
       print("\(TAG): PCM to AAC encoding completed successfully")
       return true
