@@ -45,7 +45,30 @@ android {
 
     defaultConfig {
         minSdk = 21
+
+        // Configure CMake
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
     }
+
+    // Configure CMake build
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    // Set NDK version
+    ndkVersion "25.2.9519653"
 
     dependencies {
         testImplementation("org.jetbrains.kotlin:kotlin-test")

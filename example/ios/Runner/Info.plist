@@ -55,5 +55,9 @@
 	<true/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Cần truy cập thư mục Documents để lưu file audio</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Cần truy cập thư mục Downloads để lưu file audio</string>
 </dict>
 </plist>

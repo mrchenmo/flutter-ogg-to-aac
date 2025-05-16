@@ -15,7 +15,7 @@
 
 // JNI function to get audio information from OGG file
 extern "C" JNIEXPORT jintArray JNICALL
-Java_com_example_ogg_1to_1aac_1converter_OggToAacConverterPlugin_getOggAudioInfo(
+Java_com_nmtuong_flutter_1ogg_1to_1aac_FlutterOggToAacPlugin_getOggAudioInfo(
         JNIEnv* env,
         jobject /* this */,
         jstring oggPath_jstr) {
@@ -45,7 +45,7 @@ Java_com_example_ogg_1to_1aac_1converter_OggToAacConverterPlugin_getOggAudioInfo
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_example_ogg_1to_1aac_1converter_OggToAacConverterPlugin_decodeOggToPcm(
+Java_com_nmtuong_flutter_1ogg_1to_1aac_FlutterOggToAacPlugin_decodeOggToPcm(
         JNIEnv* env,
         jobject /* this */,
         jstring oggPath_jstr,
@@ -57,6 +57,10 @@ Java_com_example_ogg_1to_1aac_1converter_OggToAacConverterPlugin_decodeOggToPcm(
     OggVorbis_File vf;
     FILE* pcmFile = nullptr;
     bool success = false;
+    vorbis_info *vi = nullptr;
+    char pcm_buffer[16384]; // Increased buffer size
+    int current_section;
+    long bytes_read;
 
     LOGI("Starting OGG decoding: %s to PCM: %s", oggPath, pcmPath);
 
@@ -71,12 +75,8 @@ Java_com_example_ogg_1to_1aac_1converter_OggToAacConverterPlugin_decodeOggToPcm(
         goto cleanup;
     }
 
-    vorbis_info *vi = ov_info(&vf, -1);
+    vi = ov_info(&vf, -1);
     LOGI("Vorbis info: channels=%d, rate=%ld", vi->channels, vi->rate);
-
-    char pcm_buffer[16384]; // Increased buffer size
-    int current_section;
-    long bytes_read;
 
     do {
         bytes_read = ov_read(&vf, pcm_buffer, sizeof(pcm_buffer), 0, 2, 1, &current_section);

@@ -40,6 +40,9 @@ file(GLOB LIBVORBIS_SOURCES
 add_library(vorbis STATIC ${LIBVORBIS_SOURCES})
 target_include_directories(vorbis PUBLIC
     ${LIBVORBIS_DIR}/include
+    ${LIBVORBIS_DIR}/lib
+    ${LIBVORBIS_DIR}/lib/modes
+    ${LIBVORBIS_DIR}/lib/books
     ${LIBOGG_DIR}/include)
 
 # --- LIBVORBISFILE ---
@@ -47,6 +50,9 @@ set(VORBISFILE_SOURCES "${LIBVORBIS_DIR}/lib/vorbisfile.c")
 add_library(vorbisfile STATIC ${VORBISFILE_SOURCES})
 target_include_directories(vorbisfile PUBLIC
     ${LIBVORBIS_DIR}/include
+    ${LIBVORBIS_DIR}/lib
+    ${LIBVORBIS_DIR}/lib/modes
+    ${LIBVORBIS_DIR}/lib/books
     ${LIBOGG_DIR}/include)
 target_link_libraries(vorbisfile vorbis ogg)
 
@@ -54,6 +60,10 @@ target_link_libraries(vorbisfile vorbis ogg)
 include_directories(includes)
 include_directories(${LIBOGG_DIR}/include)
 include_directories(${LIBVORBIS_DIR}/include)
+include_directories(${LIBVORBIS_DIR}/lib)
+include_directories(${LIBVORBIS_DIR}/lib/modes)
+include_directories(${LIBVORBIS_DIR}/lib/books)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/libvorbis)
 
 # Add native_audio_converter library
 add_library(native_audio_converter SHARED native-audio-converter.cpp)
