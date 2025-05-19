@@ -17,16 +17,14 @@ A Flutter plugin to convert OGG audio files to AAC format using libogg/libvorbis
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
 
-  # Flutter.framework does not contain a i386 slice.
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
-  s.swift_version = '5.0'
+  # No Swift code used
 
   # Add required frameworks
   s.frameworks = 'AVFoundation', 'AudioToolbox'
 
-  # Add libogg and libvorbis
-  s.vendored_libraries = 'Libraries/libogg.a', 'Libraries/libvorbis.a', 'Libraries/libvorbisfile.a'
-  s.xcconfig = { 'HEADER_SEARCH_PATHS' => '${PODS_ROOT}/../../flutter_ogg_to_aac/ios/Libraries/include' }
+  # Add libogg and libvorbis dependencies
+  s.dependency 'libogg', '~> 1.3.5'
+  s.dependency 'libvorbis', '~> 1.3.7'
 
   # Specify that we use C++
   s.library = 'c++'
@@ -34,8 +32,7 @@ A Flutter plugin to convert OGG audio files to AAC format using libogg/libvorbis
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++11',
-    'CLANG_CXX_LIBRARY' => 'libc++',
-    'SWIFT_OBJC_BRIDGING_HEADER' => '${PODS_TARGET_SRCROOT}/Classes/FlutterOggToAac-Bridging-Header.h'
+    'CLANG_CXX_LIBRARY' => 'libc++'
   }
 
   # If your plugin requires a privacy manifest, for example if it uses any

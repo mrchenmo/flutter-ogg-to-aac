@@ -1,5 +1,9 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '12.0'
+# Define a global platform for your project
+platform :ios, '12.0'
+
+# Add additional sources for libogg and libvorbis
+source 'https://github.com/CocoaPods/Specs.git'
+source 'https://github.com/brion/OGVKit-Specs.git'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

@@ -12,7 +12,26 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       channel,
       (MethodCall methodCall) async {
-        return '42';
+        if (methodCall.method == 'getPlatformVersion') {
+          return '42';
+        } else if (methodCall.method == 'convertOggToAac') {
+          final Map<dynamic, dynamic> args = methodCall.arguments as Map<dynamic, dynamic>;
+          final String inputPath = args['inputPath'] as String;
+          final String outputPath = args['outputPath'] as String;
+
+          // Kiểm tra đường dẫn đầu vào
+          if (inputPath.contains('non_existent')) {
+            throw PlatformException(
+              code: 'CONVERSION_ERROR',
+              message: 'File not found',
+              details: 'Input file does not exist: $inputPath'
+            );
+          }
+
+          // Trả về đường dẫn đầu ra nếu thành công
+          return outputPath;
+        }
+        return null;
       },
     );
   });
@@ -23,5 +42,33 @@ void main() {
 
   test('getPlatformVersion', () async {
     expect(await platform.getPlatformVersion(), '42');
+  });
+
+  group('convert', () {
+    test('returns output path on success', () async {
+      final result = await platform.convert('/path/to/input.ogg', '/path/to/output.aac');
+      expect(result, '/path/to/output.aac');
+    });
+
+    test('throws PlatformException when file does not exist', () async {
+      expect(
+        () => platform.convert('/path/to/non_existent.ogg', '/path/to/output.aac'),
+        throwsA(isA<PlatformException>())
+      );
+    });
+
+    test('throws ArgumentError when input path is empty', () async {
+      expect(
+        () => platform.convert('', '/path/to/output.aac'),
+        throwsA(isA<ArgumentError>())
+      );
+    });
+
+    test('throws ArgumentError when output path is empty', () async {
+      expect(
+        () => platform.convert('/path/to/input.ogg', ''),
+        throwsA(isA<ArgumentError>())
+      );
+    });
   });
 }
