@@ -16,6 +16,8 @@ import android.util.Log
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
@@ -57,11 +59,16 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
     } else if (call.method == "convertOggToAac") {
       val inputPath = call.argument<String>("inputPath")
       val outputPath = call.argument<String>("outputPath")
+      val options = call.argument<Map<String, Any>>("options")
 
       if (inputPath == null || outputPath == null) {
         result.error("INVALID_ARGUMENTS", "Input or output path is null", null)
         return
       }
+
+      // Extract options if available
+      val bitRate = options?.get("bitrate") as? Int ?: 192000 // Default to 192kbps
+      val prioritizeSpeed = (options?.get("priority") as? String == "speed")
 
       executor.execute {
         try {
@@ -144,8 +151,8 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
           Log.d(TAG, "OGG to PCM decoding successful, now encoding to AAC")
 
-          // Encode PCM to AAC
-          val encodeSuccess = encodePcmToAac(pcmPath, outputPath, sampleRate, channels)
+          // Encode PCM to AAC with options
+          val encodeSuccess = encodePcmToAac(pcmPath, outputPath, sampleRate, channels, bitRate, prioritizeSpeed)
           tempPcmFile.delete()
 
           if (encodeSuccess) {
@@ -163,25 +170,37 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
     }
   }
 
-  private fun encodePcmToAac(pcmPath: String, aacPath: String, sampleRate: Int, channelCount: Int): Boolean {
+  private fun encodePcmToAac(pcmPath: String, aacPath: String, sampleRate: Int, channelCount: Int, bitRate: Int = 192000, prioritizeSpeed: Boolean = false): Boolean {
     val pcmFile = File(pcmPath)
     if (!pcmFile.exists()) return false
 
     val outputFile = File(aacPath)
-    var fis: FileInputStream? = null
-    var fos: FileOutputStream? = null
+    var fis: BufferedInputStream? = null
+    var fos: BufferedOutputStream? = null
     var mediaCodec: MediaCodec? = null
 
     try {
-      val bitRate = 128000 // 128kbps is a good quality for AAC audio
+      // Use the provided bitRate parameter
+      Log.d(TAG, "Encoding with bitRate=$bitRate, prioritizeSpeed=$prioritizeSpeed")
 
       // Configure MediaFormat for AAC encoding
       val mediaFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount)
       mediaFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
       mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
-      mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384)
+      mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 65536) // Increased buffer size
       // Set PCM encoding bit depth to 16 bits
       mediaFormat.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+
+      // Set performance parameters based on prioritizeSpeed
+      if (prioritizeSpeed) {
+        mediaFormat.setInteger(MediaFormat.KEY_PRIORITY, 0) // Real-time priority
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+          mediaFormat.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE.toInt())
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+          mediaFormat.setInteger(MediaFormat.KEY_COMPLEXITY, 0) // Lowest complexity for faster encoding
+        }
+      }
 
       // Create and configure the MediaCodec encoder
       mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
@@ -190,14 +209,15 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
       Log.d(TAG, "MediaCodec configured for AAC encoding: sampleRate=$sampleRate, channels=$channelCount, bitRate=$bitRate")
 
-      fis = FileInputStream(pcmFile)
-      fos = FileOutputStream(outputFile)
+      // Use buffered streams for better I/O performance
+      fis = BufferedInputStream(FileInputStream(pcmFile), 65536) // 64KB buffer
+      fos = BufferedOutputStream(FileOutputStream(outputFile), 65536) // 64KB buffer
 
-      // Create a buffer for reading PCM data
-      val pcmBuffer = ByteArray(8192)
+      // Create a larger buffer for reading PCM data (increase from 8KB to 64KB)
+      val pcmBuffer = ByteArray(65536) // 64KB buffer for better throughput
       val bufferInfo = MediaCodec.BufferInfo()
       var isEOS = false
-      val timeoutUs = 10000L // 10ms timeout
+      val timeoutUs = 5000L // 5ms timeout for faster processing
       var presentationTimeUs = 0L
       val frameSizeInBytes = 2 * channelCount // 16-bit PCM = 2 bytes per sample per channel
       val frameSizeInSamples = pcmBuffer.size / frameSizeInBytes
@@ -224,7 +244,10 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
               val durationUs = (1000000L * samplesProcessed) / sampleRate
               presentationTimeUs += durationUs
 
-              Log.d(TAG, "Queued ${completeFrameBytes} bytes of PCM data (${samplesProcessed} samples)")
+              // Only log occasionally to reduce overhead
+              if (presentationTimeUs % 1000000L < 10000L) { // Log roughly once per second
+                Log.d(TAG, "Queued ${completeFrameBytes} bytes of PCM data (${samplesProcessed} samples)")
+              }
             } else {
               // Not enough data for a complete frame, skip this buffer
               mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, 0, 0)
@@ -260,16 +283,27 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
             // Add ADTS header to each AAC frame
             val adtsHeader = createAdtsHeader(bufferInfo.size, sampleRate, channelCount)
 
-            // Log the first few frames for debugging
-            if (presentationTimeUs < 100000) { // Only log first ~100ms
-              Log.d(TAG, "ADTS header: ${adtsHeader.joinToString(", ") { "0x${(it.toInt() and 0xFF).toString(16).padStart(2, '0')}" }}")
-              Log.d(TAG, "AAC frame size: ${bufferInfo.size} bytes, presentation time: ${bufferInfo.presentationTimeUs / 1000} ms")
+            // Log only the very first frame for debugging
+            if (presentationTimeUs == 0L) { // Only log the first frame
+              Log.d(TAG, "First ADTS header: ${adtsHeader.joinToString(", ") { "0x${(it.toInt() and 0xFF).toString(16).padStart(2, '0')}" }}")
+              Log.d(TAG, "First AAC frame size: ${bufferInfo.size} bytes")
             }
 
-            fos.write(adtsHeader)
-            fos.write(chunk)
+            // Write data efficiently - minimize system calls by using a single write when possible
+            if (adtsHeader.size + chunk.size < 8192) { // If small enough, combine into one write
+              val combined = ByteArray(adtsHeader.size + chunk.size)
+              System.arraycopy(adtsHeader, 0, combined, 0, adtsHeader.size)
+              System.arraycopy(chunk, 0, combined, adtsHeader.size, chunk.size)
+              fos.write(combined)
+            } else {
+              fos.write(adtsHeader)
+              fos.write(chunk)
+            }
 
-            Log.d(TAG, "Wrote ${bufferInfo.size + adtsHeader.size} bytes of AAC data (${adtsHeader.size} bytes header + ${bufferInfo.size} bytes payload)")
+            // Log progress occasionally
+            if (bufferInfo.presentationTimeUs % 1000000L < 10000L) { // Log roughly once per second
+              Log.d(TAG, "Encoded ${bufferInfo.presentationTimeUs / 1000} ms of audio")
+            }
           }
 
           mediaCodec.releaseOutputBuffer(outputBufferIndex, false)

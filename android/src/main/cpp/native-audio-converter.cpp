@@ -58,7 +58,7 @@ Java_com_nmtuong_flutter_1ogg_1to_1aac_FlutterOggToAacPlugin_decodeOggToPcm(
     FILE* pcmFile = nullptr;
     bool success = false;
     vorbis_info *vi = nullptr;
-    char pcm_buffer[16384]; // Increased buffer size
+    char pcm_buffer[65536]; // 64KB buffer for better performance
     int current_section;
     long bytes_read;
 
@@ -69,7 +69,12 @@ Java_com_nmtuong_flutter_1ogg_1to_1aac_FlutterOggToAacPlugin_decodeOggToPcm(
         goto cleanup;
     }
 
+    // Use a larger buffer for file I/O
     pcmFile = fopen(pcmPath, "wb");
+    if (pcmFile) {
+        // Set a 64KB buffer for file I/O
+        setvbuf(pcmFile, nullptr, _IOFBF, 65536);
+    }
     if (!pcmFile) {
         LOGE("Cannot create PCM file: %s", pcmPath);
         goto cleanup;
