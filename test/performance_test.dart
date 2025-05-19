@@ -32,7 +32,7 @@ void main() {
           buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)
         );
       } catch (e) {
-        print('Cannot create test file: $e');
+        // Error creating test file
         // Create an empty OGG file for testing
         await File(testOggPath).writeAsBytes([]);
       }
@@ -64,14 +64,13 @@ void main() {
       try {
         await FlutterOggToAac.convert(testOggPath, outputAacPath);
       } catch (e) {
-        print('Error during conversion: $e');
+        // Error during conversion
         return;
       }
 
       stopwatch.stop();
 
-      // Print conversion time
-      print('Conversion time: ${stopwatch.elapsedMilliseconds} ms');
+      // Measure conversion time
 
       // Check result
       expect(await File(outputAacPath).exists(), true);
@@ -80,9 +79,7 @@ void main() {
       final inputFileSize = await File(testOggPath).length();
       final outputFileSize = await File(outputAacPath).length();
 
-      print('Input file size: $inputFileSize bytes');
-      print('Output file size: $outputFileSize bytes');
-      print('Compression ratio: ${outputFileSize / inputFileSize}');
+      // Check file sizes and compression ratio
 
       // Ensure output file has a reasonable size
       expect(outputFileSize, greaterThan(0));
@@ -106,7 +103,7 @@ void main() {
         try {
           await FlutterOggToAac.convert(testOggPath, outputPath);
         } catch (e) {
-          print('Error during conversion #$i: $e');
+          // Error during conversion
           continue;
         }
 
@@ -123,7 +120,7 @@ void main() {
       // Print average conversion time
       if (conversionTimes.isNotEmpty) {
         final averageTime = conversionTimes.reduce((a, b) => a + b) / conversionTimes.length;
-        print('Average conversion time: $averageTime ms');
+        // Calculate average conversion time
       }
     });
   });

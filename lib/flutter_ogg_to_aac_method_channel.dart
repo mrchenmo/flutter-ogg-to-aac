@@ -28,7 +28,7 @@ class MethodChannelFlutterOggToAac extends FlutterOggToAacPlatform {
       });
       return resultPath;
     } catch (e) {
-      print('Error during conversion process: $e');
+      // Error during conversion process
       rethrow;
     }
   }

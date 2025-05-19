@@ -60,7 +60,7 @@ void main() {
         );
 
         // Check result
-        print('Conversion completed: $result');
+        // Conversion completed
         expect(result, isNotNull);
         expect(result, outputAacPath);
       } catch (e) {

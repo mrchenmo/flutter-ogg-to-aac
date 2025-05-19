@@ -24,10 +24,10 @@
     NSString *inputPath = arguments[@"inputPath"];
     NSString *outputPath = arguments[@"outputPath"];
 
-    NSLog(@"Received convert request - Input: %@, Output: %@", inputPath, outputPath);
+    // Received convert request
 
     if (inputPath == nil || outputPath == nil) {
-      NSLog(@"Invalid arguments - Input or output path missing");
+      // Invalid arguments - Input or output path missing
       result([FlutterError errorWithCode:@"INVALID_ARGUMENTS"
                                  message:@"Input or output path missing"
                                  details:nil]);
@@ -40,16 +40,16 @@
     NSString *documentsDirectory = [paths firstObject];
     NSString *safeOutputPath = [documentsDirectory stringByAppendingPathComponent:fileName];
 
-    NSLog(@"Using safe output path: %@", safeOutputPath);
+    // Using safe output path
 
     [self convertOggToAac:inputPath outputPath:safeOutputPath completion:^(NSString *convertedPath, NSError *error) {
       if (error) {
-        NSLog(@"Conversion error: %@", error.localizedDescription);
+        // Conversion error
         result([FlutterError errorWithCode:@"CONVERSION_ERROR"
                                    message:[error localizedDescription]
                                    details:nil]);
       } else {
-        NSLog(@"Conversion successful: %@", convertedPath);
+        // Conversion successful
         result(convertedPath);
       }
     }];
@@ -59,9 +59,7 @@
 }
 
 - (void)convertOggToAac:(NSString *)inputPath outputPath:(NSString *)outputPath completion:(void(^)(NSString *convertedPath, NSError *error))completion {
-  // Print path information for debugging
-  NSLog(@"OGG to AAC conversion - Input path: %@", inputPath);
-  NSLog(@"OGG to AAC conversion - Output path: %@", outputPath);
+  // Path information for debugging
 
   // Check input path
   NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -97,15 +95,14 @@
     NSString *pcmPath = [OggVorbisDecoder decodeOggToPCM:inputPath sampleRate:&sampleRate channels:&channels error:&error];
 
     if (error || pcmPath == nil) {
-      NSLog(@"OGG to AAC conversion - Failed to decode OGG: %@", error ? error.localizedDescription : @"Unknown error");
+      // Failed to decode OGG
       dispatch_async(dispatch_get_main_queue(), ^{
         completion(nil, error ?: [NSError errorWithDomain:@"com.flutter_ogg_to_aac" code:500 userInfo:@{NSLocalizedDescriptionKey: @"Failed to decode OGG file"}]);
       });
       return;
     }
 
-    NSLog(@"OGG to AAC conversion - PCM file created at: %@", pcmPath);
-    NSLog(@"OGG to AAC conversion - Sample rate: %lu, Channels: %lu", (unsigned long)sampleRate, (unsigned long)channels);
+    // PCM file created
 
     // Step 2: Encode PCM to AAC
     [self encodePCMToAAC:pcmPath outputPath:outputPath sampleRate:(int)sampleRate channels:(int)channels completion:^(NSError *encodeError) {
@@ -114,10 +111,10 @@
 
       dispatch_async(dispatch_get_main_queue(), ^{
         if (encodeError) {
-          NSLog(@"OGG to AAC conversion - Failed to encode PCM to AAC: %@", encodeError.localizedDescription);
+          // Failed to encode PCM to AAC
           completion(nil, encodeError);
         } else {
-          NSLog(@"OGG to AAC conversion - Successfully converted to: %@", outputPath);
+          // Successfully converted
           completion(outputPath, nil);
         }
       });

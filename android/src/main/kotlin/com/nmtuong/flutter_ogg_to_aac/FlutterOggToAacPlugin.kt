@@ -37,9 +37,9 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
     init {
       try {
         System.loadLibrary("native_audio_converter") // JNI library name
-        Log.d("FlutterOggToAacPlugin", "Native library loaded successfully")
+        // Native library loaded successfully
       } catch (e: UnsatisfiedLinkError) {
-        Log.e("FlutterOggToAacPlugin", "Failed to load native library: ${e.message}")
+        // Failed to load native library
       }
     }
   }
@@ -87,7 +87,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
           val tempPcmFile = File.createTempFile("temp_audio", ".pcm", flutterPluginBinding.applicationContext.cacheDir)
           val pcmPath = tempPcmFile.absolutePath
 
-          Log.d(TAG, "Starting OGG to PCM decoding: $inputPath to $pcmPath")
+          // Starting OGG to PCM decoding
 
           // Get audio information from OGG file
           var sampleRate = 44100 // Default value
@@ -100,15 +100,15 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
               if (audioInfo.size >= 2 && audioInfo[0] > 0 && audioInfo[1] > 0) {
                 sampleRate = audioInfo[0]
                 channels = audioInfo[1]
-                Log.d(TAG, "OGG audio info: sampleRate=$sampleRate, channels=$channels")
+                // OGG audio info retrieved
               } else {
-                Log.w(TAG, "Failed to get audio info, using default values")
+                // Failed to get audio info, using default values
               }
             } catch (e: UnsatisfiedLinkError) {
-              Log.e(TAG, "Native method getOggAudioInfo not found: ${e.message}")
+              // Native method getOggAudioInfo not found
               // Continue with default values
             } catch (e: Exception) {
-              Log.e(TAG, "Error getting audio info: ${e.message}")
+              // Error getting audio info
               // Continue with default values
             }
 
@@ -116,24 +116,24 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
             var decodeSuccess = false
             try {
               decodeSuccess = decodeOggToPcm(inputPath, pcmPath)
-              Log.d(TAG, "OGG to PCM decoding ${if (decodeSuccess) "successful" else "failed"}")
+              // OGG to PCM decoding completed
             } catch (e: UnsatisfiedLinkError) {
-              Log.e(TAG, "Native method decodeOggToPcm not found: ${e.message}")
+              // Native method decodeOggToPcm not found
               // Fall back to creating test PCM data
               val pcmData = createTestPcmData(sampleRate, channels, 5) // 5 seconds of audio
               File(pcmPath).outputStream().use { output ->
                 output.write(pcmData)
               }
-              Log.d(TAG, "Created test PCM data: ${pcmData.size} bytes")
+              // Created test PCM data
               decodeSuccess = true
             } catch (e: Exception) {
-              Log.e(TAG, "Error in decodeOggToPcm: ${e.message}")
+              // Error in decodeOggToPcm
               // Fall back to creating test PCM data
               val pcmData = createTestPcmData(sampleRate, channels, 5) // 5 seconds of audio
               File(pcmPath).outputStream().use { output ->
                 output.write(pcmData)
               }
-              Log.d(TAG, "Created test PCM data: ${pcmData.size} bytes")
+              // Created test PCM data
               decodeSuccess = true
             }
 
@@ -149,7 +149,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
             return@execute
           }
 
-          Log.d(TAG, "OGG to PCM decoding successful, now encoding to AAC")
+          // OGG to PCM decoding successful, now encoding to AAC
 
           // Encode PCM to AAC with options
           val encodeSuccess = encodePcmToAac(pcmPath, outputPath, sampleRate, channels, bitRate, prioritizeSpeed)
@@ -161,7 +161,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
             mainHandler.post { result.error("ENCODE_FAILED", "Failed to encode PCM to AAC", null) }
           }
         } catch (e: Exception) {
-          Log.e(TAG, "Conversion error: ${e.message}")
+          // Conversion error occurred
           mainHandler.post { result.error("CONVERSION_ERROR", e.message, e.stackTraceToString()) }
         }
       }
@@ -181,7 +181,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
     try {
       // Use the provided bitRate parameter
-      Log.d(TAG, "Encoding with bitRate=$bitRate, prioritizeSpeed=$prioritizeSpeed")
+      // Encoding with specified parameters
 
       // Configure MediaFormat for AAC encoding
       val mediaFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount)
@@ -207,7 +207,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
       mediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
       mediaCodec.start()
 
-      Log.d(TAG, "MediaCodec configured for AAC encoding: sampleRate=$sampleRate, channels=$channelCount, bitRate=$bitRate")
+      // MediaCodec configured for AAC encoding
 
       // Use buffered streams for better I/O performance
       fis = BufferedInputStream(FileInputStream(pcmFile), 65536) // 64KB buffer
@@ -246,7 +246,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
               // Only log occasionally to reduce overhead
               if (presentationTimeUs % 1000000L < 10000L) { // Log roughly once per second
-                Log.d(TAG, "Queued ${completeFrameBytes} bytes of PCM data (${samplesProcessed} samples)")
+                // Queued PCM data
               }
             } else {
               // Not enough data for a complete frame, skip this buffer
@@ -256,7 +256,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
             // End of input data
             mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
             isEOS = true
-            Log.d(TAG, "End of PCM input data")
+            // End of PCM input data
           }
         }
 
@@ -266,7 +266,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
           if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
             // Codec config data - we don't need to write this for AAC with ADTS
             // as ADTS headers contain all the necessary codec config
-            Log.d(TAG, "Received codec config data (${bufferInfo.size} bytes) - skipping")
+            // Received codec config data - skipping
             mediaCodec.releaseOutputBuffer(outputBufferIndex, false)
             outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, timeoutUs)
             continue
@@ -285,8 +285,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
             // Log only the very first frame for debugging
             if (presentationTimeUs == 0L) { // Only log the first frame
-              Log.d(TAG, "First ADTS header: ${adtsHeader.joinToString(", ") { "0x${(it.toInt() and 0xFF).toString(16).padStart(2, '0')}" }}")
-              Log.d(TAG, "First AAC frame size: ${bufferInfo.size} bytes")
+              // First ADTS header and AAC frame processed
             }
 
             // Write data efficiently - minimize system calls by using a single write when possible
@@ -302,14 +301,14 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
 
             // Log progress occasionally
             if (bufferInfo.presentationTimeUs % 1000000L < 10000L) { // Log roughly once per second
-              Log.d(TAG, "Encoded ${bufferInfo.presentationTimeUs / 1000} ms of audio")
+              // Encoded audio progress
             }
           }
 
           mediaCodec.releaseOutputBuffer(outputBufferIndex, false)
 
           if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-            Log.d(TAG, "Reached end of stream")
+            // Reached end of stream
             break
           }
 
@@ -317,10 +316,10 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
         }
       }
 
-      Log.d(TAG, "AAC encoding completed successfully")
+      // AAC encoding completed successfully
       return true
     } catch (e: Exception) {
-      Log.e(TAG, "Error encoding PCM to AAC: ${e.message}")
+      // Error encoding PCM to AAC
       e.printStackTrace()
       return false
     } finally {
@@ -330,7 +329,7 @@ class FlutterOggToAacPlugin: FlutterPlugin, MethodCallHandler {
         mediaCodec?.stop()
         mediaCodec?.release()
       } catch (e: Exception) {
-        Log.e(TAG, "Error closing resources: ${e.message}")
+        // Error closing resources
       }
     }
   }

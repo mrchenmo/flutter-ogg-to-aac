@@ -211,7 +211,7 @@ class _MyAppState extends State<MyApp> {
           final result = await Permission.manageExternalStorage.request();
           if (!result.isGranted) {
             // We can still try to save without this permission
-            print('Manage external storage permission denied, but continuing anyway');
+            // Manage external storage permission denied, but continuing anyway
           }
         }
       }

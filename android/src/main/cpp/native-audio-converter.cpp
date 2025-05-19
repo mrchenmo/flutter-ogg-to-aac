@@ -10,8 +10,8 @@
 #include "vorbis/vorbisfile.h"
 
 #define LOG_TAG "NativeAudioConverter"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) ((void)0)
+#define LOGE(...) ((void)0)
 
 // JNI function to get audio information from OGG file
 extern "C" JNIEXPORT jintArray JNICALL
