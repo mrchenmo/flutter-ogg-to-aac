@@ -34,7 +34,7 @@
       return;
     }
 
-    // Sử dụng thư mục Documents thay vì đường dẫn được cung cấp
+    // Use Documents directory instead of the provided path
     NSString *fileName = [outputPath lastPathComponent];
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *documentsDirectory = [paths firstObject];
@@ -59,11 +59,11 @@
 }
 
 - (void)convertOggToAac:(NSString *)inputPath outputPath:(NSString *)outputPath completion:(void(^)(NSString *convertedPath, NSError *error))completion {
-  // In thông tin đường dẫn để debug
+  // Print path information for debugging
   NSLog(@"OGG to AAC conversion - Input path: %@", inputPath);
   NSLog(@"OGG to AAC conversion - Output path: %@", outputPath);
 
-  // Kiểm tra đường dẫn đầu vào
+  // Check input path
   NSFileManager *fileManager = [NSFileManager defaultManager];
   if (![fileManager fileExistsAtPath:inputPath]) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -72,7 +72,7 @@
     return;
   }
 
-  // Kiểm tra thư mục đầu ra
+  // Check output directory
   NSString *outputDirectory = [outputPath stringByDeletingLastPathComponent];
   BOOL isDirectory = NO;
 
@@ -126,17 +126,17 @@
 }
 
 - (void)encodePCMToAAC:(NSString *)pcmPath outputPath:(NSString *)outputPath sampleRate:(int)sampleRate channels:(int)channels completion:(void(^)(NSError *error))completion {
-    // Kiểm tra đường dẫn đầu vào và đầu ra
+    // Check input and output paths
     NSFileManager *fileManager = [NSFileManager defaultManager];
 
-    // Kiểm tra file đầu vào
+    // Check input file
     if (![fileManager fileExistsAtPath:pcmPath]) {
         completion([NSError errorWithDomain:@"com.flutter_ogg_to_aac" code:404
                                  userInfo:@{NSLocalizedDescriptionKey: @"Input PCM file not found"}]);
         return;
     }
 
-    // Kiểm tra thư mục đầu ra
+    // Check output directory
     NSString *outputDirectory = [outputPath stringByDeletingLastPathComponent];
     BOOL isDirectory = NO;
 
@@ -149,14 +149,14 @@
         }
     }
 
-    // Kiểm tra quyền ghi vào thư mục đầu ra
+    // Check write permissions for output directory
     if (![fileManager isWritableFileAtPath:outputDirectory]) {
         completion([NSError errorWithDomain:@"com.flutter_ogg_to_aac" code:500
                                  userInfo:@{NSLocalizedDescriptionKey: @"Output directory is not writable"}]);
         return;
     }
 
-    // Xóa file đầu ra nếu đã tồn tại
+    // Delete output file if it already exists
     NSError *removeError = nil;
     if ([fileManager fileExistsAtPath:outputPath]) {
         if (![fileManager removeItemAtPath:outputPath error:&removeError]) {
@@ -166,11 +166,11 @@
         }
     }
 
-    // Tạo URL cho file đầu vào và đầu ra
+    // Create URLs for input and output files
     NSURL *inputURL = [NSURL fileURLWithPath:pcmPath];
     NSURL *outputURL = [NSURL fileURLWithPath:outputPath];
 
-    // Đọc dữ liệu PCM
+    // Read PCM data
     NSError *error = nil;
     NSData *pcmData = [NSData dataWithContentsOfFile:pcmPath options:0 error:&error];
     if (error) {
@@ -179,12 +179,12 @@
         return;
     }
 
-    // Tạo một file WAV tạm thời từ PCM raw
+    // Create a temporary WAV file from raw PCM
     NSString *tempDir = NSTemporaryDirectory();
     NSString *tempWavPath = [tempDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.wav", [[NSUUID UUID] UUIDString]]];
     NSURL *tempWavURL = [NSURL fileURLWithPath:tempWavPath];
 
-    // Thiết lập định dạng âm thanh cho file WAV
+    // Set up audio format for WAV file
     AudioStreamBasicDescription inputFormat;
     memset(&inputFormat, 0, sizeof(inputFormat));
     inputFormat.mSampleRate = sampleRate;
@@ -195,7 +195,7 @@
     inputFormat.mFramesPerPacket = 1;
     inputFormat.mBytesPerPacket = inputFormat.mBytesPerFrame = channels * (inputFormat.mBitsPerChannel / 8);
 
-    // Tạo file WAV tạm thời
+    // Create temporary WAV file
     AudioFileID audioFile;
     OSStatus status = AudioFileCreateWithURL((__bridge CFURLRef)tempWavURL,
                                            kAudioFileWAVEType,
@@ -209,7 +209,7 @@
         return;
     }
 
-    // Ghi dữ liệu PCM vào file WAV
+    // Write PCM data to WAV file
     UInt32 bytesToWrite = (UInt32)pcmData.length;
     status = AudioFileWriteBytes(audioFile, false, 0, &bytesToWrite, pcmData.bytes);
     AudioFileClose(audioFile);
@@ -220,11 +220,11 @@
         return;
     }
 
-    // Tạo file AAC tạm thời
+    // Create temporary AAC file
     NSString *tempAacPath = [tempDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.aac", [[NSUUID UUID] UUIDString]]];
     NSURL *tempAacURL = [NSURL fileURLWithPath:tempAacPath];
 
-    // Thiết lập định dạng âm thanh cho file AAC
+    // Set up audio format for AAC file
     AudioStreamBasicDescription outputFormat;
     memset(&outputFormat, 0, sizeof(outputFormat));
     outputFormat.mSampleRate = sampleRate;
@@ -236,9 +236,9 @@
     outputFormat.mChannelsPerFrame = channels;
     outputFormat.mBitsPerChannel = 0;
 
-    // Không cần thiết lập các tham số codec cho AAC
+    // No need to set codec parameters for AAC
 
-    // Tạo ExtAudioFile cho file WAV đầu vào
+    // Create ExtAudioFile for input WAV file
     ExtAudioFileRef inputFile;
     status = ExtAudioFileOpenURL((__bridge CFURLRef)tempWavURL, &inputFile);
     if (status != noErr) {
@@ -248,7 +248,7 @@
         return;
     }
 
-    // Tạo ExtAudioFile cho file AAC đầu ra
+    // Create ExtAudioFile for output AAC file
     ExtAudioFileRef outputFile;
     status = ExtAudioFileCreateWithURL((__bridge CFURLRef)tempAacURL,
                                      kAudioFileAAC_ADTSType,
@@ -265,7 +265,7 @@
         return;
     }
 
-    // Thiết lập client data format cho file đầu ra
+    // Set client data format for output file
     status = ExtAudioFileSetProperty(outputFile,
                                    kExtAudioFileProperty_ClientDataFormat,
                                    sizeof(inputFormat),
@@ -281,19 +281,19 @@
         return;
     }
 
-    // Thiết lập codec parameters cho file đầu ra
+    // Set codec parameters for output file
     UInt32 codecQuality = 127; // Highest quality
     status = ExtAudioFileSetProperty(outputFile,
                                    kExtAudioFileProperty_CodecManufacturer,
                                    sizeof(codecQuality),
                                    &codecQuality);
 
-    // Thiết lập bit rate cho file đầu ra (196 kbps - giống Android)
-    // Sử dụng cách khác để thiết lập bit rate
-    // Lưu ý: không thể thiết lập bit rate trực tiếp cho ExtAudioFile
-    // Bit rate sẽ được thiết lập tự động dựa trên chất lượng codec
+    // Set bit rate for output file (196 kbps - same as Android)
+    // Use a different way to set bit rate
+    // Note: cannot set bit rate directly for ExtAudioFile
+    // Bit rate will be set automatically based on codec quality
 
-    // Đọc dữ liệu từ file WAV và ghi vào file AAC
+    // Read data from WAV file and write to AAC file
     const UInt32 bufferSize = 32768;
     void *buffer = malloc(bufferSize);
     if (!buffer) {
@@ -333,12 +333,12 @@
         }
     }
 
-    // Giải phóng tài nguyên
+    // Free resources
     free(buffer);
     ExtAudioFileDispose(inputFile);
     ExtAudioFileDispose(outputFile);
 
-    // Xóa file WAV tạm thời
+    // Delete temporary WAV file
     [fileManager removeItemAtPath:tempWavPath error:nil];
 
     if (status != noErr) {
@@ -348,10 +348,10 @@
         return;
     }
 
-    // Copy file từ thư mục tạm sang đường dẫn đích
+    // Copy file from temporary directory to destination path
     NSError *copyError = nil;
     if ([fileManager copyItemAtPath:tempAacPath toPath:outputPath error:&copyError]) {
-        // Xóa file tạm thời
+        // Delete temporary file
         [fileManager removeItemAtPath:tempAacPath error:nil];
         completion(nil);
     } else {

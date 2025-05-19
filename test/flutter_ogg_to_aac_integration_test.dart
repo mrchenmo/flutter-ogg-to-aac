@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_ogg_to_aac/flutter_ogg_to_aac.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// Lưu ý: Đây là test giả lập, không cần file thật
-// Để chạy test thật trên thiết bị, cần chuẩn bị file test_audio.ogg
+// Note: This is a mock test, no real file needed
+// To run real tests on a device, prepare test_audio.ogg file
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +13,7 @@ void main() {
     const String outputAacPath = '/path/to/output_audio.aac';
     const String nonExistentPath = '/path/to/non_existent.ogg';
 
-    // Thiết lập mock cho MethodChannel
+    // Set up mock for MethodChannel
     setUp(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(const MethodChannel('flutter_ogg_to_aac'), (
@@ -25,7 +25,7 @@ void main() {
               final String inputPath = args['inputPath'] as String;
               final String outputPath = args['outputPath'] as String;
 
-              // Giả lập lỗi khi file không tồn tại
+              // Simulate error when file doesn't exist
               if (inputPath.contains('non_existent')) {
                 throw PlatformException(
                   code: 'CONVERSION_ERROR',
@@ -34,7 +34,7 @@ void main() {
                 );
               }
 
-              // Trả về đường dẫn đầu ra nếu thành công
+              // Return output path if successful
               return outputPath;
             } else if (methodCall.method == 'getPlatformVersion') {
               return 'iOS 16.0';
@@ -53,13 +53,13 @@ void main() {
 
     test('Convert valid OGG to AAC', () async {
       try {
-        // Thực hiện chuyển đổi
+        // Perform conversion
         final result = await FlutterOggToAac.convert(
           testOggPath,
           outputAacPath,
         );
 
-        // Kiểm tra kết quả
+        // Check result
         print('Conversion completed: $result');
         expect(result, isNotNull);
         expect(result, outputAacPath);
@@ -69,7 +69,7 @@ void main() {
     });
 
     test('Throws error when input file does not exist', () async {
-      // Thực hiện chuyển đổi và mong đợi lỗi
+      // Perform conversion and expect error
       expect(
         () => FlutterOggToAac.convert(nonExistentPath, outputAacPath),
         throwsA(isA<PlatformException>()),

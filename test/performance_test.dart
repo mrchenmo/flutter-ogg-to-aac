@@ -4,8 +4,8 @@ import 'package:flutter_ogg_to_aac/flutter_ogg_to_aac.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 
-// Lưu ý: Test này cần chạy trên thiết bị thật hoặc máy ảo
-// Sử dụng lệnh: flutter test test/performance_test.dart
+// Note: This test needs to run on a real device or emulator
+// Use command: flutter test test/performance_test.dart
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,15 +16,15 @@ void main() {
     late String outputAacPath;
 
     setUpAll(() async {
-      // Lấy thư mục tạm để lưu file test
+      // Get temporary directory to save test files
       final directory = await getTemporaryDirectory();
       tempDir = directory.path;
-      
-      // Tạo đường dẫn cho file test
+
+      // Create paths for test files
       testOggPath = '$tempDir/test_audio.ogg';
       outputAacPath = '$tempDir/output_audio.aac';
-      
-      // Tạo file OGG test từ asset
+
+      // Create OGG test file from asset
       try {
         final ByteData data = await rootBundle.load('assets/test_audio.ogg');
         final buffer = data.buffer;
@@ -32,21 +32,21 @@ void main() {
           buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)
         );
       } catch (e) {
-        print('Không thể tạo file test: $e');
-        // Tạo một file OGG trống để test
+        print('Cannot create test file: $e');
+        // Create an empty OGG file for testing
         await File(testOggPath).writeAsBytes([]);
       }
     });
 
     tearDownAll(() async {
-      // Xóa các file test sau khi hoàn thành
+      // Delete test files after completion
       final testOggFile = File(testOggPath);
       final outputAacFile = File(outputAacPath);
-      
+
       if (await testOggFile.exists()) {
         await testOggFile.delete();
       }
-      
+
       if (await outputAacFile.exists()) {
         await outputAacFile.delete();
       }
@@ -57,34 +57,34 @@ void main() {
         // Skip test if test file doesn't exist
         return;
       }
-      
-      // Đo thời gian chuyển đổi
+
+      // Measure conversion time
       final stopwatch = Stopwatch()..start();
-      
+
       try {
         await FlutterOggToAac.convert(testOggPath, outputAacPath);
       } catch (e) {
-        print('Lỗi khi chuyển đổi: $e');
+        print('Error during conversion: $e');
         return;
       }
-      
+
       stopwatch.stop();
-      
-      // In thời gian chuyển đổi
-      print('Thời gian chuyển đổi: ${stopwatch.elapsedMilliseconds} ms');
-      
-      // Kiểm tra kết quả
+
+      // Print conversion time
+      print('Conversion time: ${stopwatch.elapsedMilliseconds} ms');
+
+      // Check result
       expect(await File(outputAacPath).exists(), true);
-      
-      // Kiểm tra kích thước file đầu ra
+
+      // Check output file size
       final inputFileSize = await File(testOggPath).length();
       final outputFileSize = await File(outputAacPath).length();
-      
-      print('Kích thước file đầu vào: $inputFileSize bytes');
-      print('Kích thước file đầu ra: $outputFileSize bytes');
-      print('Tỷ lệ nén: ${outputFileSize / inputFileSize}');
-      
-      // Đảm bảo file đầu ra có kích thước hợp lý
+
+      print('Input file size: $inputFileSize bytes');
+      print('Output file size: $outputFileSize bytes');
+      print('Compression ratio: ${outputFileSize / inputFileSize}');
+
+      // Ensure output file has a reasonable size
       expect(outputFileSize, greaterThan(0));
     });
 
@@ -93,37 +93,37 @@ void main() {
         // Skip test if test file doesn't exist
         return;
       }
-      
+
       const iterations = 3;
       final conversionTimes = <int>[];
-      
+
       for (var i = 0; i < iterations; i++) {
         final outputPath = '$tempDir/output_audio_$i.aac';
-        
-        // Đo thời gian chuyển đổi
+
+        // Measure conversion time
         final stopwatch = Stopwatch()..start();
-        
+
         try {
           await FlutterOggToAac.convert(testOggPath, outputPath);
         } catch (e) {
-          print('Lỗi khi chuyển đổi lần $i: $e');
+          print('Error during conversion #$i: $e');
           continue;
         }
-        
+
         stopwatch.stop();
         conversionTimes.add(stopwatch.elapsedMilliseconds);
-        
-        // Kiểm tra kết quả
+
+        // Check result
         expect(await File(outputPath).exists(), true);
-        
-        // Xóa file đầu ra
+
+        // Delete output file
         await File(outputPath).delete();
       }
-      
-      // In thời gian chuyển đổi trung bình
+
+      // Print average conversion time
       if (conversionTimes.isNotEmpty) {
         final averageTime = conversionTimes.reduce((a, b) => a + b) / conversionTimes.length;
-        print('Thời gian chuyển đổi trung bình: $averageTime ms');
+        print('Average conversion time: $averageTime ms');
       }
     });
   });

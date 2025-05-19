@@ -19,7 +19,7 @@ void main() {
           final String inputPath = args['inputPath'] as String;
           final String outputPath = args['outputPath'] as String;
 
-          // Kiểm tra đường dẫn đầu vào
+          // Check input path
           if (inputPath.contains('non_existent')) {
             throw PlatformException(
               code: 'CONVERSION_ERROR',
@@ -28,7 +28,7 @@ void main() {
             );
           }
 
-          // Trả về đường dẫn đầu ra nếu thành công
+          // Return output path if successful
           return outputPath;
         }
         return null;
