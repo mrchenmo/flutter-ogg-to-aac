@@ -5,8 +5,8 @@ homepage: https://github.com/nmtuong97/flutter-ogg-to-aac
 repository: https://github.com/nmtuong97/flutter-ogg-to-aac
 
 environment:
-  sdk: ^3.7.2
-  flutter: '>=3.3.0'
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.5'
 
 dependencies:
   flutter:
